@@ -1,59 +1,44 @@
 export default function GaugeCard({ kaloriHariIni = 0, targetKalori }) {
   const target    = targetKalori ? parseInt(targetKalori, 10) : 0
   const hasTarget = target > 0
-
   const persen    = hasTarget ? Math.min(kaloriHariIni / target, 1) : 0
   const sisa      = hasTarget ? Math.max(target - kaloriHariIni, 0) : 0
   const lebih     = hasTarget && kaloriHariIni > target
   const warnaArc  = lebih ? '#ef4444' : '#7c3aed'
 
-  // Arc: setengah lingkaran dari kiri ke kanan, cx=100 cy=100 r=80
-  // Panjang setengah lingkaran = π * r ≈ 251.2
-  const R        = 80
-  const arcLen   = Math.PI * R          // ~251.2
-  const offset   = arcLen - persen * arcLen
+  // Setengah lingkaran: cx=100, cy=100, r=70
+  // Start = (30, 100), End = (170, 100)
+  // arcLen = π * 70 ≈ 219.91
+  const arcLen = Math.PI * 70
+  const offset = arcLen - persen * arcLen
 
-  const formatNum = (n) => (n || 0).toLocaleString('id-ID')
+  const fmt = (n) => (n || 0).toLocaleString('id-ID')
 
   return (
     <div className="card gauge-card">
       <div className="card-title">Kalori Hari Ini</div>
 
-      <div className="gauge-wrap" style={{ width: 200, height: 110, position: 'relative' }}>
-        <svg viewBox="0 0 200 110" width="200" height="110" style={{ display: 'block' }}>
+      <div style={{ position: 'relative', width: 200, height: 115 }}>
+        <svg viewBox="0 0 200 115" width="200" height="115">
           {/* Track abu-abu */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="#f0f0f0"
-            strokeWidth="14"
-            strokeLinecap="round"
-          />
+          <path d="M 30 100 A 70 70 0 0 1 170 100"
+            fill="none" stroke="#f0f0f0" strokeWidth="14" strokeLinecap="round" />
           {/* Arc progress */}
-          <path
-            d="M 20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke={hasTarget ? warnaArc : '#e9d5ff'}
-            strokeWidth="14"
-            strokeLinecap="round"
-            strokeDasharray={arcLen}
-            strokeDashoffset={hasTarget ? offset : arcLen * 0.15}
-            style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.4s ease' }}
+          <path d="M 30 100 A 70 70 0 0 1 170 100"
+            fill="none" stroke={warnaArc} strokeWidth="14" strokeLinecap="round"
+            strokeDasharray={arcLen} strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
           />
         </svg>
 
-        {/* Angka di tengah */}
         <div style={{
-          position: 'absolute', bottom: 8, left: 0, right: 0,
-          textAlign: 'center', lineHeight: 1
+          position: 'absolute', bottom: 10,
+          left: 0, right: 0, textAlign: 'center'
         }}>
-          <div style={{
-            fontSize: 26, fontWeight: 700,
-            color: lebih ? '#ef4444' : '#222'
-          }}>
-            {formatNum(kaloriHariIni)}
+          <div style={{ fontSize: 24, fontWeight: 700, color: lebih ? '#ef4444' : '#222', lineHeight: 1 }}>
+            {fmt(kaloriHariIni)}
           </div>
-          <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>kcal</div>
+          <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>kcal</div>
         </div>
       </div>
 
@@ -61,8 +46,8 @@ export default function GaugeCard({ kaloriHariIni = 0, targetKalori }) {
         {!hasTarget
           ? <span style={{ color: '#a78bfa' }}>Atur target di <strong>Kalkulator</strong> 🎯</span>
           : lebih
-            ? <span style={{ color: '#ef4444' }}>⚠️ Melebihi {formatNum(kaloriHariIni - target)} kcal</span>
-            : <>Sisa <span>{formatNum(sisa)} kcal</span> dari {formatNum(target)}</>
+            ? <span style={{ color: '#ef4444' }}>⚠️ Melebihi {fmt(kaloriHariIni - target)} kcal</span>
+            : <>Sisa <span>{fmt(sisa)} kcal</span> dari {fmt(target)}</>
         }
       </div>
     </div>
