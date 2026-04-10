@@ -1,13 +1,15 @@
-export default function GaugeCard({ kaloriHariIni = 0, targetKalori = 0 }) {
-  const persen    = Math.min(kaloriHariIni / targetKalori, 1)
-  const sisa      = Math.max(targetKalori - kaloriHariIni, 0)
-  const lebih     = kaloriHariIni > targetKalori
+export default function GaugeCard({ kaloriHariIni = 0, targetKalori }) {
+  // BUG FIX: targetKalori bisa null (belum diset user) — jangan crash
+  const target    = targetKalori || 0
+  const persen    = target > 0 ? Math.min(kaloriHariIni / target, 1) : 0
+  const sisa      = target > 0 ? Math.max(target - kaloriHariIni, 0) : 0
+  const lebih     = target > 0 && kaloriHariIni > target
   const warnaArc  = lebih ? '#ef4444' : '#7c3aed'
 
   const totalArc  = 173
   const offset    = totalArc - persen * totalArc
 
-  const formatNum = (n) => n.toLocaleString('id-ID')
+  const formatNum = (n) => (n || 0).toLocaleString('id-ID')
 
   return (
     <div className="card gauge-card">
@@ -29,13 +31,17 @@ export default function GaugeCard({ kaloriHariIni = 0, targetKalori = 0 }) {
           <div className="small">kcal</div>
         </div>
       </div>
-      {lebih
-        ? <div className="gauge-note" style={{ color: '#ef4444' }}>
-            ⚠️ Melebihi target <span style={{ color: '#ef4444' }}>{formatNum(kaloriHariIni - targetKalori)} kcal</span>
+      {target === 0
+        ? <div className="gauge-note" style={{ color: '#999' }}>
+            Belum ada target — atur di Kalkulator
           </div>
-        : <div className="gauge-note">
-            Sisa <span>{formatNum(sisa)} kcal</span> dari {formatNum(targetKalori)}
-          </div>
+        : lebih
+          ? <div className="gauge-note" style={{ color: '#ef4444' }}>
+              ⚠️ Melebihi target <span style={{ color: '#ef4444' }}>{formatNum(kaloriHariIni - target)} kcal</span>
+            </div>
+          : <div className="gauge-note">
+              Sisa <span>{formatNum(sisa)} kcal</span> dari {formatNum(target)}
+            </div>
       }
     </div>
   )
