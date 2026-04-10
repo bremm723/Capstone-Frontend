@@ -18,12 +18,12 @@ import api from './api.js'
 const HARI_MAP = { Senin:0, Selasa:1, Rabu:2, Kamis:3, Jumat:4, Sabtu:5, Minggu:6 }
 
 export default function App() {
-  const [authPage, setAuthPage]     = useState('login')
+  const [authPage, setAuthPage]       = useState('login')
   const [loadingAuth, setLoadingAuth] = useState(true)
-  const [user,     setUser]         = useState(null)
-  const [halaman,  setHalaman]      = useState('dashboard')
-  const [tema,     setTema]         = useState('light')
-  const [showNotif,setShowNotif]    = useState(false)
+  const [user,     setUser]           = useState(null)
+  const [halaman,  setHalaman]        = useState('dashboard')
+  const [tema,     setTema]           = useState('light')
+  const [showNotif,setShowNotif]      = useState(false)
 
   const [catatanItems, setCatatanItems] = useState([])
   const nextId = useRef(1)
@@ -61,7 +61,6 @@ export default function App() {
 
   // ─── CRUD handlers for CatatanMakanan (with backend sync) ─────────────────
   const tambahMakanan = async (data) => {
-    // Optimistically add to UI
     const tempId = `temp-${nextId.current++}`
     setCatatanItems(prev => [...prev, { id: tempId, ...data }])
 
@@ -76,7 +75,6 @@ export default function App() {
         lemak:   data.lemak,
         quantity: 1,
       })
-      // Replace temp item with real backend ID
       setCatatanItems(prev =>
         prev.map(it => it.id === tempId
           ? { ...it, id: res.data.id, _backendId: res.data.id }
@@ -84,7 +82,6 @@ export default function App() {
         )
       )
     } catch (err) {
-      // Rollback on failure
       console.error('Gagal menyimpan makanan:', err)
       setCatatanItems(prev => prev.filter(it => it.id !== tempId))
     }
@@ -92,9 +89,8 @@ export default function App() {
 
   const updateItem = async (id, data) => {
     setCatatanItems(prev => prev.map(it => it.id === id ? { ...it, ...data } : it))
-    const backendId = id
     try {
-      await api.put(`/tracking/${backendId}`, {
+      await api.put(`/tracking/${id}`, {
         nama:    data.nama,
         porsi:   data.porsi,
         waktu:   data.waktu,
@@ -117,77 +113,113 @@ export default function App() {
     }
   }
 
-  // ─── On mount: restore session from token ─────────────────────────────────
+  // ─── BUG FIX #1: useEffect diperbaiki — dependency array [] ada di posisi benar ──
   useEffect(() => {
     const params         = new URLSearchParams(window.location.search)
     const tokenFromUrl   = params.get('token')
     const tokenFromStore = localStorage.getItem('token')
     const token          = tokenFromUrl || tokenFromStore
 
-    if (token) {
-      localStorage.setItem('token', token)
-      if (tokenFromUrl) {
-        window.history.replaceState({}, document.title, '/')
-      }
-
-      api.get('/user/me')
-        .then(res => {
-          const u = res.data
-          setUser({
-            id:       u.id,
-            nama:     u.name,
-            email:    u.email,
-            birthday: u.birthday,
-            gender:   u.gender,
-            height:   u.height,
-            weight:   u.weight,
-          })
-        })
-        .catch(() => {
-          console.warn('Sesi tidak valid, logout.')
-          localStorage.removeItem('token')
-        })
-        .finally(() => setLoadingAuth(false))
-    } else {
+    if (!token) {
+      // Tidak ada token → langsung ke login, hentikan loading
       setLoadingAuth(false)
+      return
     }
-  }, [])
 
-  // ─── Load tracking items from backend after login ─────────────────────────
+    localStorage.setItem('token', token)
+    if (tokenFromUrl) {
+      window.history.replaceState({}, document.title, '/')
+    }
+
+    api.get('/user/me')
+      .then((res) => {
+        console.log('USER /me response:', res.data)
+
+        // BUG FIX #3: Backend return flat object {id, name, email, ...}
+        // Normalisasi agar aman apapun bentuk responsenya
+        const u = res.data?.user ?? res.data
+
+        if (!u || !u.id) {
+          console.error('Response /user/me tidak valid:', res.data)
+          localStorage.removeItem('token')
+          return
+        }
+
+        setUser({
+          id:       u.id,
+          nama:     u.name  || u.nama  || '',
+          email:    u.email || '',
+          birthday: u.birthday || '',
+          gender:   u.gender   || '',
+          height:   u.height   ?? 0,
+          weight:   u.weight   ?? 0,
+        })
+      })
+      .catch((err) => {
+        console.error('Gagal memuat sesi:', err)
+        localStorage.removeItem('token')
+      })
+      .finally(() => {
+        // BUG FIX #1: finally dipanggil → loading berhenti, tidak blank screen
+        setLoadingAuth(false)
+      })
+  }, []) // dependency array di posisi yang benar
+
+  // ─── Load tracking items dari backend setelah login ───────────────────────
+  // BUG FIX #1: useEffect ini di level top, bukan nested di dalam useEffect lain
   useEffect(() => {
     if (!user) return
+
     api.get('/tracking')
       .then(res => {
-        const items = res.data.map(t => ({
-          id:      t.id,
-          nama:    t.food.name,
-          porsi:   t.food.portion,
-          waktu:   t.mealTime,
-          kalori:  Math.round(t.food.calories * t.quantity),
-          karbo:   Math.round(t.food.carbs    * t.quantity),
-          protein: Math.round(t.food.protein  * t.quantity),
-          lemak:   Math.round(t.food.fat      * t.quantity),
-        }))
+        const raw = Array.isArray(res.data) ? res.data : []
+
+        const items = raw
+          // BUG FIX #2: filter tracking yang relasi food-nya null/undefined → tidak crash
+          .filter(t => t && t.food != null)
+          .map(t => ({
+            id:      t.id,
+            nama:    t.food.name    || 'Makanan tidak diketahui',
+            porsi:   t.food.portion || '1 porsi',
+            waktu:   t.mealTime     || 'Sarapan',
+            kalori:  Math.round((t.food.calories ?? 0) * (t.quantity ?? 1)),
+            karbo:   Math.round((t.food.carbs    ?? 0) * (t.quantity ?? 1)),
+            protein: Math.round((t.food.protein  ?? 0) * (t.quantity ?? 1)),
+            lemak:   Math.round((t.food.fat      ?? 0) * (t.quantity ?? 1)),
+          }))
+
         setCatatanItems(items)
+
         if (items.length > 0) {
-          nextId.current = Math.max(...items.map(i => i.id)) + 1
+          const maxId = Math.max(...items.map(i => typeof i.id === 'number' ? i.id : 0))
+          nextId.current = maxId + 1
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Gagal memuat tracking:', err)
+        // Tidak crash — state tetap array kosong
+      })
   }, [user])
 
-  // ─── Load weekly targets after login ──────────────────────────────────────
+  // ─── Load weekly targets setelah login ────────────────────────────────────
   useEffect(() => {
     if (!user) return
+
     api.get('/user/target')
       .then(res => {
-        if (res.data.targetMingguan) setTargetMingguan(res.data.targetMingguan)
-        if (res.data.targetHarian)   setTargetHarian(res.data.targetHarian)
+        if (Array.isArray(res.data.targetMingguan)) {
+          setTargetMingguan(res.data.targetMingguan)
+        }
+        if (res.data.targetHarian != null) {
+          setTargetHarian(res.data.targetHarian)
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        // Gagal ambil target → pakai default, tidak crash
+      })
   }, [user])
 
-  // ─── Apply calorie target from calculator ─────────────────────────────────
+  // ─── Apply calorie target dari kalkulator ─────────────────────────────────
   const terapkanTarget = async (hari, kalori) => {
     const idx = HARI_MAP[hari]
     if (idx === undefined) return
