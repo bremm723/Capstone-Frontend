@@ -2,18 +2,32 @@ import { useEffect, useState } from 'react'
 import api from '../api.js'
 
 export default function AirTracker() {
-  const [terisi, setTerisi] = useState(0)
+  const [terisi,  setTerisi]  = useState(0)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     api.get('/tracking/air')
-      .then(res => setTerisi(res.data.jumlah))
+      .then(res => setTerisi(res.data.jumlah ?? 0))
       .catch(() => {})
   }, [])
 
   const toggle = async (i) => {
+    // Hitung nilai baru: klik gelas yang sudah terisi → kurangi, belum terisi → tambah
     const jumlahBaru = i < terisi ? i : i + 1
+    const jumlahSebelum = terisi
+
+    // Optimistic update
     setTerisi(jumlahBaru)
-    await api.put('/tracking/air', { jumlah: jumlahBaru })
+    setLoading(true)
+    try {
+      await api.put('/tracking/air', { jumlah: jumlahBaru })
+    } catch (err) {
+      // Rollback jika gagal
+      console.error('Gagal menyimpan asupan air:', err)
+      setTerisi(jumlahSebelum)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -26,11 +40,16 @@ export default function AirTracker() {
       </div>
       <div className="cups-row">
         {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className={i < terisi ? 'cup filled' : 'cup'} onClick={() => toggle(i)} />
+          <div
+            key={i}
+            className={i < terisi ? 'cup filled' : 'cup'}
+            onClick={() => !loading && toggle(i)}
+            style={{ cursor: loading ? 'wait' : 'pointer' }}
+          />
         ))}
       </div>
       <div className="air-progress-bar">
-        <div className="air-progress-fill" style={{ width: `${(terisi/ 8) * 100}%` }} />
+        <div className="air-progress-fill" style={{ width: `${(terisi / 8) * 100}%` }} />
       </div>
       <div className="air-progress-label">{Math.round((terisi / 8) * 100)}% target harian</div>
     </div>
