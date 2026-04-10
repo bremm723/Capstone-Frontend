@@ -13,21 +13,25 @@ export default function HalamanLogin({ onLogin, onKeRegister }) {
     if (!email || !password) { setError('Email dan password harus diisi.'); return }
     setLoading(true); setError('')
     try {
-      // Step 1: Login to get token
+      // Step 1: Login → dapat token
       const res = await api.post('/auth/login', { email, password })
       localStorage.setItem('token', res.data.token)
 
-      // Step 2: Fetch full user profile so we have name, gender, height, etc.
+      // Step 2: Ambil profil lengkap
       const meRes = await api.get('/user/me')
-      const u = meRes.data
+
+      // BUG FIX: Backend return flat object {id, name, email, ...}
+      // field adalah "name" bukan "nama" — normalisasi di sini
+      const u = meRes.data?.user ?? meRes.data
+
       onLogin({
         id:       u.id,
-        nama:     u.name,
-        email:    u.email,
-        birthday: u.birthday,
-        gender:   u.gender,
-        height:   u.height,
-        weight:   u.weight,
+        nama:     u.name     || u.nama  || '',  // support kedua field
+        email:    u.email    || '',
+        birthday: u.birthday || '',
+        gender:   u.gender   || '',
+        height:   u.height   ?? 0,
+        weight:   u.weight   ?? 0,
       })
     } catch (err) {
       localStorage.removeItem('token')
@@ -65,7 +69,7 @@ export default function HalamanLogin({ onLogin, onKeRegister }) {
           <div className="auth-divider"><span>— Atau masuk dengan —</span></div>
           <div className="auth-social-row">
             <button className="auth-social-btn"
-              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`}>
+              onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/auth/google`}>
               <AiFillGoogleCircle /> Google
             </button>
           </div>

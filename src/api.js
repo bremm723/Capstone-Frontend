@@ -1,8 +1,11 @@
 import axios from "axios";
 
+// Fallback agar tidak pernah undefined — cegah crash saat env tidak terbaca
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true, // 🔥 penting untuk CORS + cookie
+  baseURL: BASE_URL,
+  withCredentials: true,
 });
 
 // Attach token ke setiap request
@@ -14,16 +17,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle error response
+// Handle error response — jangan auto-logout terlalu agresif
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 🔥 jangan terlalu agresif logout
     if (error.response?.status === 401) {
-      console.warn("Unauthorized, clearing token...");
+      console.warn("Unauthorized – token dihapus");
       localStorage.removeItem("token");
     }
-
     return Promise.reject(error);
   }
 );
